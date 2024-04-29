@@ -49,6 +49,8 @@ pub trait DbManager: Send + Sync + Sized {
 
     async fn search(&self, query: &Query) -> Result<Search, Error>;
 
+    async fn get_repo_url(&self, name: &str, version: Version) -> Result<Option<String>, Error>;
+
     /// Store a nonce associated to a CsrfToken. A single entry is allowed per CsrfToken
     #[cfg(feature = "openid")]
     async fn store_nonce_by_csrf(

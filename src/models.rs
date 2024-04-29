@@ -152,6 +152,7 @@ impl Metadata {
             deps: self.deps.iter().map(Clone::clone).map(Into::into).collect(),
             cksum: checksum.into(),
             features: self.features.clone(),
+            repository: self.repository.clone(),
             yanked: false,
             links: self.links.clone(),
         }
@@ -181,6 +182,7 @@ pub struct Package {
     pub deps: Vec<Dependency>,
     pub cksum: String,
     pub features: HashMap<String, Vec<String>>,
+    pub repository: Option<url::Url>,
     pub yanked: bool,
     pub links: Option<String>,
 }
@@ -251,6 +253,11 @@ impl Entry {
     pub fn owner_ids_mut(&mut self) -> &mut Vec<u32> {
         &mut self.owner_ids
     }
+
+    // #[tracing::instrument(skip(self))]
+    // pub fn repo_url(&self) -> Option<&Url> {
+    //     self.versions().values().next().and_then(|metadata| metadata.repository.as_ref())
+    // }
 }
 
 #[derive(Debug, Clone, Deserialize)]
