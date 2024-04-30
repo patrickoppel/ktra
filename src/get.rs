@@ -50,7 +50,7 @@ pub fn apis(
     cache_dir_path: Arc<PathBuf>,
     path: Vec<String>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    let routes = download(dl_dir_path.clone(), path)
+    let routes = download(dl_dir_path.clone(), path.clone())
         .or(download_github(path, db_manager.clone(), dl_dir_path))
         .or(download_crates_io(http_client, cache_dir_path))
         .or(owners(db_manager.clone()))
@@ -71,8 +71,9 @@ pub(crate) fn into_boxed_filters(path: Vec<String>) -> BoxedFilter<()> {
 
 #[tracing::instrument(skip(path))]
 pub(crate) fn into_boxed_filters_return(path: Vec<String>) -> BoxedFilter<(Vec<String>,)> {
+    let path_clone = path.clone();
     let (h, t) = path.split_at(1);
-    t.iter().fold(warp::path(h[0].clone()).map(|| path.clone()).boxed(), |accm, s| {
+    t.iter().fold(warp::path(h[0].clone()).map(move || path_clone.clone()).boxed(), |accm, s| {
         accm.and(warp::path(s.clone())).boxed()
     })
 }
@@ -86,7 +87,11 @@ fn download(
 }
 
 #[tracing::instrument(skip(path, db_manager, dl_dir_path))]
-fn download_github(path: Vec<String>, db_manager: Arc<RwLock<impl DbManager>>, dl_dir_path: Arc<PathBuf>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+fn download_github(
+    path: Vec<String>,
+    db_manager: Arc<RwLock<impl DbManager>>,
+    dl_dir_path: Arc<PathBuf>
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     warp::get()
         .and(with_db_manager(db_manager))
         .and(with_dl_dir_path(dl_dir_path))
@@ -94,11 +99,12 @@ fn download_github(path: Vec<String>, db_manager: Arc<RwLock<impl DbManager>>, d
         .and_then(handle_download_github)
 }
 
-#[tracing::instrument(skip(db_manager, dl_dir_path, path))]
+// #[tracing::instrument(skip(db_manager, dl_dir_path, path))]
 async fn handle_download_github(
     db_manager: Arc<RwLock<impl DbManager>>,
     dl_dir_path: Arc<PathBuf>,
     path: Vec<String>,
+// ) -> Result<impl Filter<Extract = impl Reply, Error = Rejection> + Clone, Rejection> {
 ) -> Result<impl Reply, Rejection> {
     let db_manager = db_manager.read().await;
     let crate_name = path.iter().next();
@@ -109,7 +115,7 @@ async fn handle_download_github(
 
         // Get the GitHub URL from the database
         let github_url = db_manager
-            .get_repo_url(&crate_name, version)
+            .get_repo_url(&crate_name, version.clone())
             .map_err(warp::reject::custom)
             .await?
             .ok_or_else(|| warp::reject::not_found())?;
@@ -127,11 +133,55 @@ async fn handle_download_github(
         // Write the file to disk
         tokio::fs::write(&file_path, &bytes).await.map_err(Error::Io)?;
 
-        Ok(warp::fs::file(file_path))
+        let file_bytes = tokio::fs::read(&file_path).await.map_err(Error::Io)?;
+        // Ok(warp::fs::file(file_path))
+        // Ok(download(dl_dir_path, path))
+        Ok(warp::reply::with_header(
+            file_bytes,
+            "Content-Disposition",
+            format!("attachment; filename=\"{}-{}.crate\"", crate_name, version), 
+        ))
     } else {
         Err(warp::reject::not_found())
     }
 }
+// async fn handle_download_github(
+//     db_manager: Arc<RwLock<impl DbManager>>,
+//     dl_dir_path: Arc<PathBuf>,
+//     path: Vec<String>,
+// ) -> Result<Box<dyn warp::Reply>, Rejection> {
+//     let db_manager = db_manager.read().await;
+//     let crate_name = path.iter().next();
+//     let version = path.iter().next();
+//     if let (Some(crate_name), Some(version)) = (crate_name, version) {
+//         let crate_name = crate_name.to_string();
+//         let version = Version::parse(version).map_err(|_| Error::SemVer)?;
+
+//         // Get the GitHub URL from the database
+//         let github_url = db_manager
+//             .get_repo_url(&crate_name, version.clone())
+//             .map_err(warp::reject::custom)
+//             .await?
+//             .ok_or_else(|| warp::reject::not_found())?;
+
+//         // Download the file from GitHub
+//         let response = reqwest::get(&github_url).await.map_err(Error::HttpRequest)?;
+
+//         // Get the bytes of the file
+//         let bytes = response.bytes().await.map_err(Error::HttpRequest)?;
+
+//         // Create the local file path
+//         let mut file_path = dl_dir_path.as_ref().to_path_buf();
+//         file_path.push(format!("{}-{}.crate", crate_name, version));
+
+//         // Write the file to disk
+//         tokio::fs::write(&file_path, &bytes).await.map_err(Error::Io)?;
+
+//         Ok(Box::new(warp::fs::file(file_path)))
+//     } else {
+//         Err(warp::reject::not_found())
+//     }
+// }
 
 #[cfg(feature = "crates-io-mirroring")]
 #[tracing::instrument(skip(http_client, cache_dir_path, crate_name, version))]
