@@ -1,3 +1,7 @@
+# !!! Fork !!!
+
+This fork allows users to share a registry via Github repo only, no server needed. Every team member can run `Ktra` locally. For set-up see Documentations.
+
 # Ktra 🚚 [![ktra at crates.io](https://img.shields.io/crates/v/ktra.svg)](https://crates.io/crates/ktra)
 
 *Your Little Cargo Registry*.  
@@ -8,8 +12,14 @@ In other words, `Ktra` is an all-in-one package for the private cargo registry.
 
 ## Documentations
 
-- [The Ktra Book](https://book.ktra.dev)
-    - includes introduction and quick start guide.
+Please follow the instructions in [The Ktra Book](https://book.ktra.dev) for introduction and quick start guide.
+    
+**Attention**
+
+Additional set-up is required when sharing a registry via github alone. **This should be done before publishing the crate for the first time.**
+
+- add repositor in crates `Cargo.toml`
+- add `workflows-release.yml` as `.github/workflows/release.yml` in your crate's repo
 
 ## Docker images
 
