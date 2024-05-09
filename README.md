@@ -18,7 +18,7 @@ Please follow the instructions in [The Ktra Book](https://book.ktra.dev) for int
 
 Additional set-up is required when sharing a registry via github alone. **This should be done before publishing the crate for the first time.**
 
-- add repository key in crates `Cargo.toml`, see example:
+- add repository key in your crates `Cargo.toml`, see example:
 ```
 [package]
 name = "ktra"
