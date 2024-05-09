@@ -23,6 +23,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use warp::{Filter, Rejection, Reply};
+use tracing_subscriber::FmtSubscriber;
+use tracing::subscriber::set_global_default;
 
 #[cfg(all(
     feature = "db-mongo",
@@ -161,6 +163,7 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
 
     let routes = routes
         .with(warp::trace::request())
+        .with(warp::log("ktra"))
         .recover(handle_rejection);
 
     warp::serve(routes)
@@ -218,7 +221,11 @@ fn matches() -> ArgMatches<'static> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(tracing::Level::DEBUG)
+        .finish();
+
+    set_global_default(subscriber)?;
 
     let matches = matches();
 

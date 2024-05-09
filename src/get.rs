@@ -51,7 +51,7 @@ pub fn apis(
     path: Vec<String>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let routes = download(dl_dir_path.clone(), path.clone())
-        .or(download_github(path, db_manager.clone(), dl_dir_path))
+        .or(download_github(db_manager.clone(), dl_dir_path))
         .or(download_crates_io(http_client, cache_dir_path))
         .or(owners(db_manager.clone()))
         .or(search(db_manager));
@@ -69,15 +69,6 @@ pub(crate) fn into_boxed_filters(path: Vec<String>) -> BoxedFilter<()> {
     })
 }
 
-#[tracing::instrument(skip(path))]
-pub(crate) fn into_boxed_filters_return(path: Vec<String>) -> BoxedFilter<(Vec<String>,)> {
-    let path_clone = path.clone();
-    let (h, t) = path.split_at(1);
-    t.iter().fold(warp::path(h[0].clone()).map(move || path_clone.clone()).boxed(), |accm, s| {
-        accm.and(warp::path(s.clone())).boxed()
-    })
-}
-
 #[tracing::instrument(skip(path, dl_dir_path))]
 fn download(
     dl_dir_path: Arc<PathBuf>,
@@ -86,102 +77,96 @@ fn download(
     into_boxed_filters(path).and(warp::fs::dir(dl_dir_path.to_path_buf()))
 }
 
-#[tracing::instrument(skip(path, db_manager, dl_dir_path))]
+// #[tracing::instrument(skip(path, db_manager, dl_dir_path))]
+#[tracing::instrument(skip(db_manager, dl_dir_path))]
 fn download_github(
-    path: Vec<String>,
     db_manager: Arc<RwLock<impl DbManager>>,
     dl_dir_path: Arc<PathBuf>
-) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone { 
     warp::get()
+        .and(warp::path::tail())
         .and(with_db_manager(db_manager))
         .and(with_dl_dir_path(dl_dir_path))
-        .and(into_boxed_filters_return(path))
         .and_then(handle_download_github)
 }
 
 // #[tracing::instrument(skip(db_manager, dl_dir_path, path))]
 async fn handle_download_github(
+    path: warp::path::Tail,
     db_manager: Arc<RwLock<impl DbManager>>,
     dl_dir_path: Arc<PathBuf>,
-    path: Vec<String>,
-// ) -> Result<impl Filter<Extract = impl Reply, Error = Rejection> + Clone, Rejection> {
 ) -> Result<impl Reply, Rejection> {
     let db_manager = db_manager.read().await;
-    let crate_name = path.iter().next();
-    let version = path.iter().next();
-    if let (Some(crate_name), Some(version)) = (crate_name, version) {
+    
+    let path_segments: Vec<&str> = path.as_str().split('/').collect();
+    let crate_name = path_segments.get(1);
+    let version = path_segments.get(2);
+
+    println!("crate_name: {:?}, version: {:?}", crate_name, version);
+
+    if let (Some(crate_name), Some(version)) = (&crate_name, &version) {
         let crate_name = crate_name.to_string();
-        let version = Version::parse(version).map_err(|_| Error::SemVer)?;
+        let version = Version::parse(&version).map_err(|_| Error::SemVer)?;
 
         // Get the GitHub URL from the database
-        let github_url = db_manager
+        let mut github_url = db_manager
             .get_repo_url(&crate_name, version.clone())
             .map_err(warp::reject::custom)
             .await?
             .ok_or_else(|| warp::reject::not_found())?;
 
-        // Download the file from GitHub
-        let response = reqwest::get(&github_url).await.map_err(Error::HttpRequest)?;
+        // Check if the URL ends in .git and if yes remove it
+        if github_url.ends_with(".git") {
+            let new_length = github_url.len() - 4;
+            github_url.truncate(new_length);
+        } 
 
+        github_url.push_str(&format!("/releases/download/{}/{}-{}.crate",version,crate_name,version));
+        println!("github_url: {:?}", github_url);
+
+        let contents = tokio::fs::read_to_string("ktra.toml").await.map_err(Error::Io)?;
+        let config = toml::from_str::<crate::Config>(&contents).map_err(|_| warp::reject::custom(Error::Io(tokio::io::ErrorKind::Other.into())))?;
+        let token_path = config.index_config.token_path.clone().ok_or_else(|| warp::reject::not_found())?;
+        let mut token = tokio::fs::read_to_string(token_path).await.map_err(|_| warp::reject::custom(Error::Io(tokio::io::ErrorKind::Other.into())))?;
+
+        token.pop(); // Remove the newline character
+
+        let client = reqwest::Client::builder()
+            .default_headers({
+                let mut headers = reqwest::header::HeaderMap::new();
+                headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    format!("Bearer {}", token).parse().unwrap(),
+                );
+                headers
+            })
+            .build().map_err(|e| warp::reject::custom(Error::HttpRequest(e)))?;
+
+        let response = client.get(&github_url).send().await.map_err(Error::HttpRequest)?;
+        
         // Get the bytes of the file
         let bytes = response.bytes().await.map_err(Error::HttpRequest)?;
 
         // Create the local file path
-        let mut file_path = dl_dir_path.as_ref().to_path_buf();
-        file_path.push(format!("{}-{}.crate", crate_name, version));
+        let mut file_path = dl_dir_path.as_ref().to_path_buf();  
+        file_path.push(format!("./{}/{}/{}-{}.crate", crate_name, version, crate_name, version));     
 
+        if let Some(parent) = file_path.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|_| Error::Io(tokio::io::ErrorKind::Other.into()))?;
+        }
         // Write the file to disk
         tokio::fs::write(&file_path, &bytes).await.map_err(Error::Io)?;
 
-        let file_bytes = tokio::fs::read(&file_path).await.map_err(Error::Io)?;
-        // Ok(warp::fs::file(file_path))
-        // Ok(download(dl_dir_path, path))
-        Ok(warp::reply::with_header(
-            file_bytes,
-            "Content-Disposition",
-            format!("attachment; filename=\"{}-{}.crate\"", crate_name, version), 
-        ))
+        let response = Response::builder()
+        .header("Content-Type", "application/x-tar")
+        .body(bytes)
+        .map_err(Error::HttpResponseBuilding)?;
+
+        Ok(response)
     } else {
         Err(warp::reject::not_found())
     }
 }
-// async fn handle_download_github(
-//     db_manager: Arc<RwLock<impl DbManager>>,
-//     dl_dir_path: Arc<PathBuf>,
-//     path: Vec<String>,
-// ) -> Result<Box<dyn warp::Reply>, Rejection> {
-//     let db_manager = db_manager.read().await;
-//     let crate_name = path.iter().next();
-//     let version = path.iter().next();
-//     if let (Some(crate_name), Some(version)) = (crate_name, version) {
-//         let crate_name = crate_name.to_string();
-//         let version = Version::parse(version).map_err(|_| Error::SemVer)?;
-
-//         // Get the GitHub URL from the database
-//         let github_url = db_manager
-//             .get_repo_url(&crate_name, version.clone())
-//             .map_err(warp::reject::custom)
-//             .await?
-//             .ok_or_else(|| warp::reject::not_found())?;
-
-//         // Download the file from GitHub
-//         let response = reqwest::get(&github_url).await.map_err(Error::HttpRequest)?;
-
-//         // Get the bytes of the file
-//         let bytes = response.bytes().await.map_err(Error::HttpRequest)?;
-
-//         // Create the local file path
-//         let mut file_path = dl_dir_path.as_ref().to_path_buf();
-//         file_path.push(format!("{}-{}.crate", crate_name, version));
-
-//         // Write the file to disk
-//         tokio::fs::write(&file_path, &bytes).await.map_err(Error::Io)?;
-
-//         Ok(Box::new(warp::fs::file(file_path)))
-//     } else {
-//         Err(warp::reject::not_found())
-//     }
-// }
 
 #[cfg(feature = "crates-io-mirroring")]
 #[tracing::instrument(skip(http_client, cache_dir_path, crate_name, version))]

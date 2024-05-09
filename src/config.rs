@@ -21,6 +21,7 @@ pub struct IndexConfig {
     #[serde(default = "IndexConfig::name_default")]
     pub name: String,
     pub email: Option<String>,
+    pub token_path: Option<PathBuf>
 }
 
 impl IndexConfig {

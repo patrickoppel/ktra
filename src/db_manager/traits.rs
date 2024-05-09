@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use semver::Version;
 
 #[async_trait]
-pub trait DbManager: Send + Sync + Sized {
+pub trait DbManager: Send + Sync + Sized + std::fmt::Debug {
     async fn new(confg: &DbConfig) -> Result<Self, Error>;
     async fn get_login_prefix(&self) -> Result<&str, Error>;
 

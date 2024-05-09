@@ -22,10 +22,11 @@ const SCHEMA_VERSION: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
 const USERS_KEY: &str = "__USERS__";
 const PASSWORDS_KEY: &str = "__PASSWORDS__";
 const TOKENS_KEY: &str = "__TOKENS__";
-const OAUTH_NONCES_KEY: &str = "__OAUTH_NONCES__";
+// const OAUTH_NONCES_KEY: &str = "__OAUTH_NONCES__";
 
 const OLD_TOKENS_KEY: &str = "tokens";
 
+#[derive(Debug)]
 pub struct SledDbManager {
     tree: Db,
     login_prefix: String,
