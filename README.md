@@ -18,7 +18,18 @@ Please follow the instructions in [The Ktra Book](https://book.ktra.dev) for int
 
 Additional set-up is required when sharing a registry via github alone. **This should be done before publishing the crate for the first time.**
 
-- add repositor in crates `Cargo.toml`
+- add repository key in your crates `Cargo.toml`, see example:
+```
+[package]
+name = "ktra"
+version = "0.7.0"
+authors = ["moriturus <moriturus@alimensir.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "Your Little Cargo Registry"
+repository = "https://github.com/moriturus/ktra"
+```
+
 - add `workflows-release.yml` as `.github/workflows/release.yml` in your crate's repo
 
 ## Docker images
