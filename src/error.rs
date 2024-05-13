@@ -113,7 +113,7 @@ pub enum Error {
         not(all(feature = "db-redis", feature = "db-mongo"))
     ))]
     #[error("error by database: {}", _0)]
-    Db(sled::Error),
+    SledDb(sled::Error),
     #[cfg(all(
         feature = "db-sled",
         not(all(feature = "db-redis", feature = "db-mongo"))
@@ -125,13 +125,15 @@ pub enum Error {
         not(all(feature = "db-sled", feature = "db-mongo"))
     ))]
     #[error("error by database: {}", _0)]
-    Db(redis::RedisError),
+    RedisDb(redis::RedisError),
     #[cfg(all(
         feature = "db-mongo",
         not(all(feature = "db-sled", feature = "db-redis"))
     ))]
     #[error("error by database: {}", _0)]
-    Db(mongodb::error::Error),
+    MongoDb(mongodb::error::Error),
+    // #[error("error by database: {}", _0)]
+    // Db(Box<Error>),
     #[error("multiple errors: {:?}", _0)]
     Multiple(Vec<Error>),
     #[error("task joinning error: {}", _0)]
