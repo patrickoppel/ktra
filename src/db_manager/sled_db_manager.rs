@@ -408,6 +408,7 @@ impl DbManager for SledDbManager {
 
     async fn get_repo_url(&self, name: &str, version: Version) -> Result<Option<String>, Error> {
         let mut entry = self.entry(name).await?;
+        println!("entry: {:?}", entry);
         let version_entry = entry.package_mut(&version).ok_or(Error::VersionNotFoundInDb(version))?;     
         Ok(Some(version_entry.repository.clone().unwrap().to_string()))
     }
