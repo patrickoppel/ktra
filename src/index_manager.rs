@@ -13,6 +13,10 @@ use std::sync::Arc;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+use crate::DbManager;
+use std::io::Read;
+use crate::models::{Entry, Metadata};
 
 pub struct IndexManager {
     config: IndexConfig,
@@ -20,12 +24,19 @@ pub struct IndexManager {
 }
 
 impl IndexManager {
-    #[tracing::instrument(skip(config))]
-    pub async fn new(config: IndexConfig) -> Result<IndexManager, Error> {
-        let repository = tokio::task::block_in_place(|| clone_or_open_repository(&config))
-            .map(Mutex::new)
-            .map(Arc::new)
-            .map_err(Error::Git)?;
+    #[tracing::instrument(skip(config, db_manager))]
+    pub async fn new(config: IndexConfig, db_manager: Arc<RwLock<impl DbManager>>) -> Result<IndexManager, Error> {
+        let config_clone = config.clone();
+        let repository = tokio::task::block_in_place(move || async move {
+            clone_or_open_repository(&config_clone, db_manager).await
+        })
+        .await
+        .unwrap();
+
+        let repository = Arc::new(Mutex::new(repository));
+        // .map(Mutex::new)
+        // .map(Arc::new)
+        // .map_err(Error::Git);
         let manager = IndexManager { config, repository };
         Ok(manager)
     }
@@ -202,11 +213,14 @@ fn credentials_callback<'a>(
     }
 }
 
-#[tracing::instrument(skip(config))]
-fn clone_or_open_repository(config: &IndexConfig) -> Result<git2::Repository, git2::Error> {
+#[tracing::instrument(skip(config, db_manager))]
+async fn clone_or_open_repository(
+    config: &IndexConfig,
+    db_manager: Arc<RwLock<impl DbManager>>,
+) -> Result<git2::Repository, git2::Error> {
     let path = config.local_path.as_path();
 
-    if path.exists() {
+    let repo = if path.exists() {
         tracing::info!("open index repository: {:?}", path);
         git2::Repository::open(path)
     } else {
@@ -222,7 +236,55 @@ fn clone_or_open_repository(config: &IndexConfig) -> Result<git2::Repository, gi
         builder.fetch_options(fetch_options);
 
         builder.clone(&config.remote_url, path)
+    }?;
+
+
+    let mut index = repo.index()?;
+
+    // Iterate over the repository's content and insert it into the database
+    index.read_tree(&repo.head()?.peel_to_tree()?)?;
+    for entry in index.iter() {
+        let path = entry.path;
+        let path_str = std::str::from_utf8(&path).map_err(|_| git2::Error::from_str("Couldn't convert path to string"))?;
+        let path_parts: Vec<&str> = path_str.split('/').collect();
+        
+        // Check if the path is two sub-folders deep
+        if path_parts.len() == 3 {
+            let file_path = std::path::Path::new(&path_str);
+            let file_name_osstr = file_path.file_name().ok_or(git2::Error::from_str("Couldn't get file name from path"))?;
+            let file_name = file_name_osstr.to_str().ok_or(git2::Error::from_str("Couldn't convert file name to string"))?;
+            
+            // Open the file and read its content
+            let mut file = std::fs::File::open(&format!("{}/{}",config.local_path.as_path().display(),file_path.display())).map_err(|_| git2::Error::from_str("Couldn't open file"))?;
+            let mut buf = String::new();
+            file.read_to_string(&mut buf).map_err(|_| git2::Error::from_str("Couldn't read file"))?;
+            let (oks, _errors): (Vec<_>, Vec<_>) = buf
+                .lines()
+                .map(|l| serde_json::from_str::<Package>(l).map_err(Error::InvalidJson))
+                .partition(Result::is_ok);
+
+            // take oks and convert to Metadata
+            let meta = oks
+                .into_iter()
+                .map(Result::unwrap)
+                .map(|p| Metadata::from_package(p))
+                .collect::<Vec<_>>();
+
+            // Convert Metadata to Entry
+            let mut entry = Entry::new();
+
+            for m in meta {
+                entry.versions_mut().insert(m.vers.clone(), m);
+            }
+
+            entry.owner_ids_mut().push(0);
+
+            let db_manager = db_manager.write().await;
+            db_manager.insert_package(&file_name, entry).await.map_err(|_| git2::Error::from_str("Couldn't insert package into database"))?;        
+        }
     }
+
+    Ok(repo)
 }
 
 #[tracing::instrument(skip(repository, config))]

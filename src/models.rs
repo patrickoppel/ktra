@@ -58,6 +58,24 @@ impl From<MetadataDependency> for Dependency {
     }
 }
 
+impl From<Dependency> for MetadataDependency {
+    #[tracing::instrument(skip(val))]
+    fn from(val: Dependency) -> Self {
+        Self {
+            name: val.name,
+            version_req: val.req,
+            features: val.features,
+            optional: val.optional,
+            default_features: val.default_features,
+            target: val.target,
+            kind: val.kind,
+            registry: val.registry,
+            explicit_name_in_toml: val.package,
+        }
+    }
+
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Dependency {
     /// Name of the dependency.
@@ -158,6 +176,29 @@ impl Metadata {
         }
     }
 
+    pub fn from_package(package: Package) -> Metadata {
+        Metadata {
+            name: package.name.clone(),
+            vers: package.vers.clone(),
+            deps: package.deps.iter().map(Clone::clone).map(Into::into).collect(),
+            features: package.features.clone(),
+            authors: vec![],
+            description: None,
+            documentation: None,
+            homepage: None,
+            readme: None,
+            readme_file: None,
+            keywords: vec![],
+            categories: vec![],
+            license: None,
+            license_file: None,
+            repository: package.repository.clone(),
+            badges: HashMap::new(),
+            links: package.links.clone(),
+            yanked: package.yanked,
+        }
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn to_searched(&self) -> SearchedMetadata {
         SearchedMetadata {
@@ -219,6 +260,13 @@ pub struct Entry {
 }
 
 impl Entry {
+    pub fn new() -> Entry {
+        Entry {
+            versions: HashMap::new(),
+            owner_ids: Vec::new(),
+        }
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn is_empty(&self) -> bool {
         self.versions.is_empty() && self.owner_ids.is_empty()

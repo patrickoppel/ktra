@@ -137,13 +137,16 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         not(all(feature = "db-sled", feature = "db-redis"))
     ))]
     let db_manager = MongoDbManager::new(&config.db_config).await?;
-    let index_manager = IndexManager::new(config.index_config).await?;
-    index_manager.pull().await?;
+    // let index_manager = IndexManager::new(config.index_config).await?;
+    // index_manager.pull().await?;
 
     #[cfg(feature = "crates-io-mirroring")]
     let http_client = Client::builder().build()?;
 
     let db_manager = Arc::new(RwLock::new(db_manager));
+    let index_manager = IndexManager::new(config.index_config, db_manager.clone()).await?;
+    index_manager.pull().await?;
+
     let routes = apis(
         db_manager.clone(),
         Arc::new(index_manager),

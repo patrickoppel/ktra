@@ -69,7 +69,6 @@ async fn handle_new(
         String::from_utf8(bytes[..].to_vec()).map_err(Error::InvalidUtf8Bytes)
     })
     .map_err(warp::reject::custom)?;
-    println!("{:?}",metadata_string);
     let metadata: Metadata = serde_json::from_str(&metadata_string)
         .map_err(Error::InvalidJson)
         .map_err(warp::reject::custom)?;

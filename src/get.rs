@@ -102,7 +102,7 @@ async fn handle_download_github(
     let crate_name = path_segments.get(1);
     let version = path_segments.get(2);
 
-    println!("crate_name: {:?}, version: {:?}", crate_name, version);
+    tracing::debug!("crate_name: {:?}, version: {:?}", crate_name, version);
 
     if let (Some(crate_name), Some(version)) = (&crate_name, &version) {
         let crate_name = crate_name.to_string();
@@ -122,7 +122,7 @@ async fn handle_download_github(
         } 
 
         github_url.push_str(&format!("/releases/download/{}/{}-{}.crate",version,crate_name,version));
-        println!("github_url: {:?}", github_url);
+        tracing::debug!("github_url: {:?}", github_url);
 
         let contents = tokio::fs::read_to_string("ktra.toml").await.map_err(Error::Io)?;
         let config = toml::from_str::<crate::Config>(&contents).map_err(|_| warp::reject::custom(Error::Io(tokio::io::ErrorKind::Other.into())))?;
