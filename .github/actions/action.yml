@@ -1,0 +1,128 @@
+name: Release
+description: Release a crate to your GitHub registry
+inputs:
+  github_token:
+    description: 'GitHub Token'
+    required: true
+    # default: ${{ inputs.github_token }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    # Checkout Code
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        path: ${{ github.event.repository.name }}
+
+    # Get crate info
+    - name: Get crate info
+      shell: bash
+      id: crate_info
+      run: |   
+        cd ${{ github.event.repository.name }}     
+        echo "VERSION=$(cargo read-manifest | jq -r .version)" >> "$GITHUB_OUTPUT"
+        echo "NAME=$(cargo read-manifest | jq -r .name)" >> "$GITHUB_OUTPUT"
+        cd ..
+
+    # Clone registry and ktra repos
+    # Run Ktra
+    # Build, Test, Publish crate
+    - name: Download and run shell script\
+      shell: bash
+      run: |
+        curl -O https://raw.githubusercontent.com/patrickoppel/ktra/develop/release.sh
+        chmod +x release.sh
+        ./release.sh
+      env: 
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        CRATE_PATH: ${{ github.workspace }}/${{ github.event.repository.name }}
+
+    # Upload package
+    - name: Upload package
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}
+        path: ${{ github.event.repository.name }}/target/package/*.crate
+
+    # Check if tag exists
+    - name: Check if tag exists
+      shell: bash
+      id: check_tag
+      run: |
+        TAG_NAME="v${{ steps.crate_info.outputs.VERSION }}"
+        HTTP_STATUS=$(curl --silent --head --location "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG_NAME" | grep HTTP | cut -d ' ' -f2)
+        if [ "$HTTP_STATUS" == "200" ]; then
+          echo "EXISTS=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "EXISTS=false" >> "$GITHUB_OUTPUT"
+        fi
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    # Create and push tag
+    - name: Create and push tag
+      id: create_tag
+      shell: bash
+      if: steps.check_tag.outputs.EXISTS != true
+      run: |
+        cd ${{ github.workspace }}/${{ github.event.repository.name }}
+        TAG_NAME="v${{ steps.crate_info.outputs.VERSION }}"
+        echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_OUTPUT"
+        git tag $TAG_NAME
+        git push origin $TAG_NAME
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    # Create Release
+    - name: Create Release
+      shell: bash
+      if: steps.check_tag.outputs.EXISTS != true
+      run: |
+        cd ${{ github.workspace }}/${{ github.event.repository.name }}        
+        gh release create ${{ steps.create_tag.outputs.TAG_NAME }} \
+          --title "Release ${{ steps.create_tag.outputs.TAG_NAME }}" \
+          --generate-notes \
+          --repo ${{ github.repository }} \
+          --files "${{ github.workspace }}/${{ github.event.repository.name }}/target/package/*.crate"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+
+    # # Create Release
+    # - name: Create Release
+    #   uses: softprops/action-gh-release@v2
+    #   if: steps.check_tag.outputs.EXISTS != true
+    #   with:
+    #     tag_name: ${{ steps.create_tag.outputs.TAG_NAME }}
+    #     prerelease: false
+    #     files: ${{ github.workspace }}/${{ github.event.repository.name }}/target/package/*.crate
+    #     token: ${{ inputs.github_token }}
+
+    # # Create Release
+    # - name: Create Release
+    #   id: create_release
+    #   uses: elgohr/Github-Release-Action@v5
+    #   if: steps.check_tag.outputs.EXISTS != true
+    #   env:
+    #     GH_TOKEN: ${{ inputs.github_token }}
+    #   with:
+    #     title: Release ${{ steps.crate_info.outputs.VERSION }}
+    #     workdir: ${{ github.workspace }}/${{ github.event.repository.name }}
+
+    # # Upload Package to Release
+    # - name: Upload Release Asset
+    #   id: upload-release-asset 
+    #   uses: actions/upload-release-asset@v1
+    #   if: steps.check_tag.outputs.EXISTS != true
+    #   env:
+    #     GITHUB_TOKEN: ${{ inputs.github_token }}
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: ${{ github.event.repository.name }}/target/package/${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}.crate
+    #     asset_name: ${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}.crate
+    #     asset_content_type: application/octet-stream

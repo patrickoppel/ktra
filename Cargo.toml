@@ -11,6 +11,13 @@ categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
 documentation = "https://book.ktra.dev"
 
+[profile.release]
+strip = true
+lto = true
+opt-level = "z"
+panic = "abort"
+codegen-units = 1
+
 [features]
 default = ["secure-auth", "db-sled", "crates-io-mirroring"]
 
