@@ -88,8 +88,9 @@ runs:
         gh release create ${{ steps.create_tag.outputs.TAG_NAME }} \
           --title "Release ${{ steps.create_tag.outputs.TAG_NAME }}" \
           --generate-notes \
-          --repo ${{ github.repository }} \
-          --files "${{ github.workspace }}/${{ github.event.repository.name }}/target/package/*.crate"
+          --repo ${{ github.repository }}
+        gh release upload ${{ steps.create_tag.outputs.TAG_NAME }} \
+          ${{ github.workspace }}/${{ github.event.repository.name }}/target/package/*.crate
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
 
