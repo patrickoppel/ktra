@@ -149,6 +149,8 @@ pub enum Error {
     InvalidHttpResponseLength,
     #[error("SemVer error")]
     SemVer,
+    #[error("Error parsing Package")]
+    ParsePackage,
 }
 
 impl Error {

@@ -41,6 +41,8 @@ use db_manager::RedisDbManager;
     not(all(feature = "db-redis", feature = "db-mongo"))
 ))]
 use db_manager::SledDbManager;
+#[cfg(not(any(feature = "db-mongo", feature = "db-redis", feature = "db-sled")))]
+use crate::db_manager::NoDbManager;
 
 #[cfg(feature = "crates-io-mirroring")]
 #[tracing::instrument(skip(
@@ -137,6 +139,8 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         not(all(feature = "db-sled", feature = "db-redis"))
     ))]
     let db_manager = MongoDbManager::new(&config.db_config).await?;
+    #[cfg(not(any(feature = "db-mongo", feature = "db-redis", feature = "db-sled")))]
+    let db_manager = NoDbManager::new(&config.index_config);
     // let index_manager = IndexManager::new(config.index_config).await?;
     // index_manager.pull().await?;
 

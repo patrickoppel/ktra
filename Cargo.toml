@@ -19,7 +19,7 @@ panic = "abort"
 codegen-units = 1
 
 [features]
-default = ["secure-auth", "db-sled", "crates-io-mirroring"]
+default = ["secure-auth", "crates-io-mirroring"]
 
 secure-auth = ["rand", "rust-argon2"]
 crates-io-mirroring = ["reqwest", "tokio-util"]

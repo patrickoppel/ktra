@@ -4,6 +4,8 @@ mod mongo_db_manager;
 mod redis_db_manager;
 #[cfg(feature = "db-sled")]
 mod sled_db_manager;
+
+mod no_db_manager;
 mod traits;
 mod utils;
 
@@ -13,4 +15,6 @@ pub use mongo_db_manager::MongoDbManager;
 pub use redis_db_manager::RedisDbManager;
 #[cfg(feature = "db-sled")]
 pub use sled_db_manager::SledDbManager;
+
+pub use no_db_manager::NoDbManager;
 pub use traits::DbManager;

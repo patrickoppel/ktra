@@ -235,7 +235,7 @@ impl Package {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct User {
     pub id: u32,
     pub login: String,
