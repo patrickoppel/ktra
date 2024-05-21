@@ -440,6 +440,10 @@ impl DbManager for RedisDbManager {
             .ok_or_else(|| Error::VersionNotFoundInDb(version.clone()))?;
         Ok(Some(metadata.repository.clone().unwrap().to_string()))
     }
+
+    async fn insert_package(&self, key: &str, value: Entry) -> Result<(), Error> {
+        self.insert_entry(key, value).await
+    }
 }
 
 impl RedisDbManager {
