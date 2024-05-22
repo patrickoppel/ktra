@@ -36,7 +36,7 @@ echo "Setting up ktra"
 echo $GITHUB_TOKEN > ktra/github_token.txt
 echo "
 [index_config]
-remote_url = 'ssh://git@github.com/$REPO'
+remote_url = 'https://github.com/$REPO'
 local_path = '../$(basename $REPO)'
 ssh_privkey_path = '../private_key'
 branch = 'main'
