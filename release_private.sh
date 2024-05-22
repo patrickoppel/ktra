@@ -19,7 +19,14 @@ REPO=$(grep -oP 'index = \K.*' .cargo/config.toml | tr -d '"' | awk -F/ '{print 
 cd ..
 ls -la
 eval "$(ssh-agent -s)"
-ssh-add - <<< "${SSH_PRIV_KEY}"
+
+# Write the private key to a file
+echo "${SSH_PRIV_KEY}" > ./private_key
+chmod 600 ./private_key
+
+# Add the private key file to the SSH agent
+ssh-add ./private_key
+
 git clone ssh://git@github.com/$REPO
 
 echo "Cloning ktra's repository"
@@ -31,7 +38,7 @@ echo "
 [index_config]
 remote_url = 'ssh://git@github.com/$REPO'
 local_path = '../$(basename $REPO)'
-ssh-priv-key = '$SSH_PRIV_KEY'
+ssh_privkey_path = '../private_key'
 branch = 'main'
 token_path = './github_token.txt'
 " > ktra/ktra.toml
