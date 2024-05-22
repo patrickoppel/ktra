@@ -18,7 +18,9 @@ REGISTRY=$(awk -F'=' '/\[registries\]/ {getline; print $1}' .cargo/config.toml |
 REPO=$(grep -oP 'index = \K.*' .cargo/config.toml | tr -d '"' | awk -F/ '{print $(NF-1)"/"$NF}' | sed 's/\.git.*//')
 cd ..
 ls -la
-git clone ssh://$SSH_PRIV_KEY@github.com/$REPO
+eval "$(ssh-agent -s)"
+ssh-add - <<< "${SSH_PRIV_KEY}"
+git clone ssh://git@github.com/$REPO
 
 echo "Cloning ktra's repository"
 git clone https://github.com/patrickoppel/ktra
