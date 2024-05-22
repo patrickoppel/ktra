@@ -4,7 +4,9 @@ inputs:
   github_token:
     description: 'GitHub Token'
     required: true
-    # default: ${{ inputs.github_token }}
+  deploy_key:
+    description: 'Deploy Key'
+    required: true
 runs:
   using: 'composite'
   steps:
@@ -40,7 +42,7 @@ runs:
         ./release_private.sh
       env: 
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        SSH_PRIV_KEY: ${{ secrets.DEPLOY_KEY }}
+        SSH_PRIV_KEY: ${{ inputs.deploy_key }}
         CRATE_PATH: ${{ github.workspace }}/${{ github.event.repository.name }}
 
     # Upload package
