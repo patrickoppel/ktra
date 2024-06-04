@@ -27,6 +27,8 @@ chmod 600 ./private_key
 # Add the private key file to the SSH agent
 ssh-add ./private_key
 
+ls -la
+
 git clone ssh://git@github.com/$REPO
 
 echo "Cloning ktra's repository"
