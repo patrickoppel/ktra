@@ -49,8 +49,15 @@ runs:
     - name: Upload package
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}
+        name: ${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}.crate
         path: ${{ github.event.repository.name }}/target/package/*.crate
+
+    # Download package
+    - name: Download package
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}.crate
+        path: ${{ github.workspace}}/${{ steps.crate_info.outputs.NAME }}-${{ steps.crate_info.outputs.VERSION }}.crate      
 
     # Check if tag exists
     - name: Check if tag exists
@@ -93,7 +100,7 @@ runs:
           --generate-notes \
           --repo ${{ github.repository }}
         gh release upload ${{ steps.create_tag.outputs.TAG_NAME }} \
-          ${{ github.workspace }}/${{ github.event.repository.name }}/target/package/*.crate
+          ${{ github.workspace }}/*.crate
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
 
