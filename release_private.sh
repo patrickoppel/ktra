@@ -68,11 +68,12 @@ cargo login --registry=$REGISTRY $TOKEN
 
 cargo build --release
 
-ls -la ../ktra/**
-
 cargo test
 
 echo "Publish the crate"
 cargo package
+
+ls -la ../ktra/***
+ls -la ./***
 
 cat ../ktra/ktra_output.txt
