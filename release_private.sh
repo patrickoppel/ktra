@@ -21,6 +21,7 @@ ls -la
 eval "$(ssh-agent -s)"
 
 # Write the private key to a file
+echo $SSH_PRIV_KEY
 echo $SSH_PRIV_KEY > ./private_key
 chmod 600 ./private_key
 

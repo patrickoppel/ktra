@@ -42,7 +42,8 @@ runs:
         ./release_private.sh
       env: 
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        SSH_PRIV_KEY: ${{ inputs.deploy_key }}
+        # SSH_PRIV_KEY: ${{ inputs.deploy_key }}
+        SSH_PRIV_KEY: "Test"
         CRATE_PATH: ${{ github.workspace }}/${{ github.event.repository.name }}
 
     # Upload package
