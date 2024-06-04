@@ -80,8 +80,8 @@ runs:
       id: create_tag
       shell: bash
       if: steps.check_tag.outputs.EXISTS != true
-      run: |
-        cd ${{ github.workspace }}/${{ github.event.repository.name }}
+      # cd ${{ github.workspace }}/${{ github.event.repository.name }}
+      run: |        
         TAG_NAME="v${{ steps.crate_info.outputs.VERSION }}"
         echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_OUTPUT"
         git tag $TAG_NAME
@@ -93,8 +93,8 @@ runs:
     - name: Create Release
       shell: bash
       if: steps.check_tag.outputs.EXISTS != true
-      run: |
-        cd ${{ github.workspace }}/${{ github.event.repository.name }}        
+      # cd ${{ github.workspace }}/${{ github.event.repository.name }}        
+      run: |        
         gh release create ${{ steps.create_tag.outputs.TAG_NAME }} \
           --title "Release ${{ steps.create_tag.outputs.TAG_NAME }}" \
           --generate-notes \

@@ -73,7 +73,6 @@ cargo test
 echo "Publish the crate"
 cargo package
 
-ls -la ../ktra/***
-ls -la ./***
+ls -la ./target/**
 
 cat ../ktra/ktra_output.txt
