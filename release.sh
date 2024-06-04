@@ -18,6 +18,7 @@ REGISTRY=$(awk -F'=' '/\[registries\]/ {getline; print $1}' .cargo/config.toml |
 REPO=$(grep -oP 'index = \K.*' .cargo/config.toml | tr -d '"' | awk -F/ '{print $(NF-1)"/"$NF}' | sed 's/\.git.*//')
 cd ..
 ls -la
+echo $REPO
 git clone https://github.com/$REPO
 
 echo "Cloning ktra's repository"
