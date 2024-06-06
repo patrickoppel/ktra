@@ -121,8 +121,14 @@ async fn handle_download_github(
             github_url.truncate(new_length);
         } 
 
-        github_url.push_str(&format!("/releases/download/{}/{}-{}.crate",version,crate_name,version));
-        tracing::debug!("github_url: {:?}", github_url);
+        let base_url = "https://github.com/";
+        let api_base_url = "https://api.github.com/repos/";
+
+        if github_url.starts_with(base_url) {
+            github_url = format!("{}{}", api_base_url, &github_url[base_url.len()..]);
+        }
+        github_url.push_str(&format!("/releases/tags/v{}",version));
+        // tracing::debug!("github_url: {:?}", github_url);
 
         let contents = tokio::fs::read_to_string("ktra.toml").await.map_err(Error::Io)?;
         let config = toml::from_str::<crate::Config>(&contents).map_err(|_| warp::reject::custom(Error::Io(tokio::io::ErrorKind::Other.into())))?;
@@ -131,6 +137,43 @@ async fn handle_download_github(
 
         token.pop(); // Remove the newline character
 
+        // Get Asset URL from GitHub API (this is necessary for private repos, but works for public repos too)
+        let client = reqwest::Client::builder()
+            .default_headers({
+                let mut headers = reqwest::header::HeaderMap::new();
+                headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    format!("token {}", token).parse().unwrap_or_else(|_| panic!("Failed to parse token")) // This unwrap should never fail,
+                );
+                headers.insert(
+                    reqwest::header::USER_AGENT,
+                    "rust web-api-client demo".parse().unwrap_or_else(|_| panic!("Failed to parse token")) // This unwrap should never fail,
+                );
+                headers
+            })
+            .build().map_err(|e| warp::reject::custom(Error::HttpRequest(e)))?;
+
+        let response = client.get(&github_url).send().await.map_err(Error::HttpRequest)?;
+
+        let release = response
+            .json::<serde_json::Value>()
+            .await
+            .map_err(Error::HttpRequest)?;
+        let release_assets = release.get("assets").and_then(|a| a.as_array()).unwrap();
+
+        let mut asset_url = "".to_string();
+        for asset in release_assets {
+            let name = asset.get("name").and_then(|n| n.as_str()).unwrap();
+            if name.ends_with(".crate") {
+                asset_url = asset.get("url").and_then(|u| u.as_str()).unwrap().to_string();
+                break;
+            }
+        }
+
+        if asset_url.is_empty() {
+            return Err(warp::reject::not_found());
+        }
+        
         let client = reqwest::Client::builder()
             .default_headers({
                 let mut headers = reqwest::header::HeaderMap::new();
@@ -138,12 +181,19 @@ async fn handle_download_github(
                     reqwest::header::AUTHORIZATION,
                     format!("Bearer {}", token).parse().unwrap_or_else(|_| panic!("Failed to parse token")) // This unwrap should never fail,
                 );
+                headers.insert(
+                    reqwest::header::ACCEPT,
+                    "application/octet-stream".parse().unwrap_or_else(|_| panic!("Failed to parse token")) // This unwrap should never fail,
+                );
+                headers.insert(
+                    reqwest::header::USER_AGENT,
+                    "rust web-api-client demo".parse().unwrap_or_else(|_| panic!("Failed to parse token")) // This unwrap should never fail,
+                );
                 headers
             })
             .build().map_err(|e| warp::reject::custom(Error::HttpRequest(e)))?;
+        let response = client.get(asset_url).send().await.map_err(Error::HttpRequest)?;
 
-        let response = client.get(&github_url).send().await.map_err(Error::HttpRequest)?;
-        
         // Get the bytes of the file
         let bytes = response.bytes().await.map_err(Error::HttpRequest)?;
 
