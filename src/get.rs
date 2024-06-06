@@ -154,7 +154,9 @@ async fn handle_download_github(
             .build().map_err(|e| warp::reject::custom(Error::HttpRequest(e)))?;
 
         let response = client.get(&github_url).send().await.map_err(Error::HttpRequest)?;
-
+        
+        println!("Response: {:?}", response);
+        
         let release = response
             .json::<serde_json::Value>()
             .await
