@@ -99,6 +99,7 @@ async fn handle_new(
 
     if remainder.is_empty() {
         let checksum = checksum(&crate_data);
+        tracing::debug!("checksum: {}", checksum);
 
         let package = metadata.to_package(checksum);
         index_manager
